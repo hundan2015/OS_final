@@ -7,6 +7,7 @@
 #include "../model/Block.h"
 #include "../model/FCB.h"
 #include "../model/Folder.h"
+#include "string"
 #include <memory>
 #include <stack>
 namespace file_system {
@@ -14,10 +15,11 @@ namespace file_system {
     class HardDiskManager {
         std::array<Block, hard_disk_size> hard_disk;
         SuperBlock super_block;
+        FCB *root_fcb;
         void InitSuperBlock() {
             super_block.target_block = &hard_disk[0];
             memcpy(hard_disk[0].data, super_block.GetBlockData().get(), block_size);
-            for (short i = 1; i < hard_disk_size; ++i) {
+            for (short i = hard_disk_size - 1; i > 0; --i) {
                 ReturnBlock(i);
             }
         }
@@ -79,31 +81,11 @@ namespace file_system {
             }
         }
 
-    public:
-        HardDiskManager() {
-            Format();
+        void WriteFile(short index_handle, char *data, unsigned int size) {
+            FileIndex temp_index(&hard_disk[index_handle]);
+            WriteFile(&temp_index, data, size);
         }
-        /**
-         * The basic format function.
-         */
-        void Format() {
-            hard_disk.fill(Block());
-            /**
-             * | super block | root_dir_index | root_dir_file_block0 | ....... |
-             * |      0      |       1        |          2           | ....... |
-             */
-            //TODO:Init Super block.
-            InitSuperBlock();
-            //Init root dir index.
-            FileIndex root_file_index;
-            memcpy(hard_disk[1].data, root_file_index.GetBlockData().get(), block_size);
-            root_file_index.target_block = &hard_disk[1];
-            // Init root dir file.
-            Folder dir_folder;
-            auto dir_folder_data = dir_folder.GetFileData();
-            WriteFile(&root_file_index, dir_folder_data.get(), dir_folder.GetFileSize());
-            std::cout << "Format finished." << std::endl;
-        }
+
         /**
          * Write data to the target file.
          * @param file_index Target file index.
@@ -121,12 +103,14 @@ namespace file_system {
                     memcpy(hard_disk[i].data, data, block_size);
                     data += block_size;
                 } else {
+                    memset(hard_disk[i].data, 0, block_size);
                     memcpy(hard_disk[i].data, data, size);
+                    size = 0;
                     break;
                 }
             }
 
-            if (size <= 0) {
+            if (size == 0) {
                 // Maybe the original data is larger than now.
                 if (file_index->next_index_handle != -1) {
                     ReturnFileIndexCascade(file_index->next_index_handle);
@@ -148,18 +132,26 @@ namespace file_system {
         /**
          * Read the data from target file index.
          * @param file_index Target file index.
-         * @param size The site of the data's size. You can use it after reading.
+         * @param size The data's size.
          * @return
          */
-        char *ReadFile(FileIndex *file_index, unsigned int &size) {
+        char *ReadFile(FileIndex *file_index, unsigned int size, unsigned &fake_size) {
             std::string data_string;
             FileIndex *current_file_index = file_index;
             std::vector<FileIndex *> file_index_ptr;
+            fake_size = 0;
             do {
                 for (const auto &i: current_file_index->index) {
                     if (i != -1) {
-                        std::string block_data_str(hard_disk[i].data, hard_disk[i].data + block_size);
-                        data_string += block_data_str;
+                        if (size >= block_size) {
+                            std::string block_data_str(hard_disk[i].data, hard_disk[i].data + block_size);
+                            data_string += block_data_str;
+                        } else {
+                            std::string block_data_str(hard_disk[i].data, hard_disk[i].data + size);
+                            data_string += block_data_str;
+                        }
+                        size -= block_size;
+                        fake_size += block_size;
                     } else {
                         break;
                     }
@@ -171,26 +163,89 @@ namespace file_system {
                 }
             } while (current_file_index->next_index_handle != -1);
             char *data_ptr = new char[data_string.size()];
-            size = data_string.size();
             memcpy(data_ptr, data_string.c_str(), data_string.size());
+            for (auto &i: file_index_ptr) {
+                delete i;
+            }
             return data_ptr;
         }
+
+    public:
+        FCB *GetRootFCB() {
+            return root_fcb;
+        }
+        HardDiskManager() {
+            Format();
+        }
+        /**
+         * The basic format function.
+         */
+        void Format() {
+            hard_disk.fill(Block());
+            /**
+             * | super block | root_dir_index | root_dir_file_block0 | ....... |
+             * |      0      |       1        |          2           | ....... |
+             */
+            InitSuperBlock();
+            //Init root dir index.
+            root_fcb = CreateFile("root");
+            root_fcb->file_type = FOLDER;
+            auto folder = Folder(*root_fcb, *root_fcb);
+            WriteFile(root_fcb, folder.GetFileData().get(), folder.GetFileSize());
+
+            /*short root_file_index = CreateFileIndex();
+
+            //memcpy(hard_disk[1].data, root_file_index.GetBlockData().get(), block_size);
+            //root_file_index.target_block = &hard_disk[1];
+            // Init root dir file.
+            Folder dir_folder;
+            auto dir_folder_data = dir_folder.GetFileData();
+
+            WriteFile(&root_file_index, dir_folder_data.get(), dir_folder.GetFileSize());*/
+            std::cout
+                    << "Format finished." << std::endl;
+        }
+
+
         /**
          * Create file
          * @return
          */
-        FCB *CreateFile(char *name) {
+        FCB *CreateFile(const char *name) {
             FCB *result = new FCB();
             memcpy(result->name, name, sizeof(result->name));
             result->index_handle = CreateFileIndex();
-            return nullptr;
+            return result;
         }
-        File *ReadFile(FCB *fcb) {
-            auto result = new File();
-            unsigned int size = 0;
-            FileIndex fcb_file_index(&hard_disk[fcb->index_handle]);
-            result->data = std::unique_ptr<char[]>(ReadFile(&fcb_file_index, size));
-            result->data_size = size;
+        File *ReadFile(FCB *fcb, bool use_fake_size = false) {
+            auto *fcb_file_index = new FileIndex(&hard_disk[fcb->index_handle]);
+            unsigned int fake_size;
+            if (use_fake_size) fcb->size = 4294967295;// U_int max
+            auto *data_ptr = ReadFile(fcb_file_index, fcb->size, fake_size);
+            if (use_fake_size) fcb->size = fake_size;
+            auto result = new File(fcb_file_index, data_ptr, fcb->size);
+            return result;
+        }
+
+
+        void WriteFile(FCB *target_fcb,char *data, unsigned int size) {
+            WriteFile(target_fcb->index_handle, data, size);
+            target_fcb->size = size;
+        }
+
+        FCB *CreateFolder(const char *name, FCB *parent) {
+            FCB *result = CreateFile(name);
+            result->file_type = FOLDER;
+            Folder folder_data(*parent, *result);
+            //folder_data.target_file_index = std::make_unique<FileIndex>(FileIndex(&hard_disk[result->index_handle]));
+            WriteFile(result->index_handle, folder_data.GetFileData().get(), folder_data.GetFileSize());
+            result->size = folder_data.GetFileSize();
+            return result;
+        }
+        Folder *OpenFolder(FCB *folder_fcb) {
+            std::unique_ptr<File> folder_file(ReadFile(folder_fcb));
+            folder_file->data_size = folder_fcb->size;
+            auto *result = new Folder(folder_file.get(), *folder_fcb);
             return result;
         }
     };

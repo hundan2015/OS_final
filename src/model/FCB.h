@@ -20,8 +20,10 @@ namespace file_system {
         short index_handle = -1;//-1~32767
         int permission = 0;
         FileType file_type = NORMAL;
-        unsigned int opened_count = 0;
-        char pattern[4];
+        short parent_index_handle = -1;
+        unsigned short opened_count = 0;
+        unsigned int size = 0;
+
     };
     //TODO: Maybe need an active fcb.
 
