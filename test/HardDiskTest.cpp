@@ -31,7 +31,7 @@ int main() {
     File *root_folder_file_ano = hard_disk_manager.ReadFile(root_fcb);
     Folder root_folder_ano = Folder(root_folder_file_ano);
     cout << endl;
-    for (auto i: root_folder_ano.fcb_map) {
+    for (auto &i: root_folder_ano.fcb_map) {
         cout << i.first << endl;
     }
 

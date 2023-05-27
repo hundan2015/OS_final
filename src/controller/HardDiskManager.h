@@ -224,11 +224,12 @@ namespace file_system {
             auto *data_ptr = ReadFile(fcb_file_index, fcb->size, fake_size);
             if (use_fake_size) fcb->size = fake_size;
             auto result = new File(fcb_file_index, data_ptr, fcb->size);
+            delete[] data_ptr;
             return result;
         }
 
 
-        void WriteFile(FCB *target_fcb,char *data, unsigned int size) {
+        void WriteFile(FCB *target_fcb, char *data, unsigned int size) {
             WriteFile(target_fcb->index_handle, data, size);
             target_fcb->size = size;
         }
@@ -247,6 +248,9 @@ namespace file_system {
             folder_file->data_size = folder_fcb->size;
             auto *result = new Folder(folder_file.get(), *folder_fcb);
             return result;
+        }
+        ~HardDiskManager() {
+            delete root_fcb;
         }
     };
 }// namespace file_system

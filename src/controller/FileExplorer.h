@@ -14,13 +14,13 @@ namespace file_system {
         HardDiskManager &hard_disk_mgr_;
         // file_first_index_handle -> fcb_ptr
         std::map<short, FCB *> active_fcb_map_;
-        FCB *current_dir;
-        FCB *last_dir_fcb = nullptr;
-        std::shared_ptr<Folder> last_dir;
+        FCB *current_dir = nullptr;
+        FCB *root_fcb;
 
     public:
         FileExplorer(HardDiskManager &hard_disk_mgr) : hard_disk_mgr_(hard_disk_mgr) {
             //Contain a copy of root fcb.
+            root_fcb = hard_disk_mgr_.GetRootFCB();
             current_dir = hard_disk_mgr_.GetRootFCB();
         }
 
@@ -29,7 +29,7 @@ namespace file_system {
             Folder current_folder = (current_dir_file.get());
             auto iter = current_folder.fcb_map.find(folder_name);
             if (iter != current_folder.fcb_map.end()) {
-                if (current_dir->parent_index_handle != -1)
+                if (current_dir != root_fcb)
                     delete current_dir;
                 current_dir = new FCB(iter->second);
                 cout << "Change to folder " << current_dir->name << " success." << endl;
@@ -77,6 +77,7 @@ namespace file_system {
             } else {
                 cout << "Already have this file." << endl;
             }
+            delete file;
         }
 
         void CreateFileInCurrentFolder(std::string name) {
@@ -116,6 +117,7 @@ namespace file_system {
             } else {
                 cout << "Already have this file." << endl;
             }
+            delete folder_fcb;
         }
         void CreateFolderInCurrentFolder(std::string name) {
             CreateFolder(current_dir, name);
@@ -145,10 +147,13 @@ namespace file_system {
         void OpenFile(FCB *file_fcb) {
             File *file = hard_disk_mgr_.ReadFile(file_fcb);
             cout << "Data:" << endl;
-            std::unique_ptr<char[]> res(new char[file->GetFileSize()]);
+            std::unique_ptr<char[]> res(new char[file->GetFileSize() + 1]);
+            memset(res.get(), 0, file->GetFileSize() + 1);
             memcpy(res.get(), file->GetFileData().get(), file->GetFileSize());
+            delete file;
             //data.push_back('\0');
             cout << res.get() << endl;
+            res = nullptr;
         }
         void WriteFileInCurrentFolder(std::string name, std::string data) {
             WriteFileInFolder(current_dir, name, data);
@@ -169,6 +174,9 @@ namespace file_system {
         void WriteFile(FCB *fcb, std::string data) {
             auto str = data.data();
             hard_disk_mgr_.WriteFile(fcb, str, data.size());
+        }
+        ~FileExplorer() {
+            delete current_dir;
         }
     };
 
