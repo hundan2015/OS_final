@@ -1,8 +1,8 @@
-#include "src/controller/FileManager.h"
+#include "src/controller/HardDiskManager.h"
 #include <iostream>
 using namespace file_system;
 int main() {
-    FileManager fileManager;
+    HardDiskManager fileManager;
     std::cout << "shit";
     return 0;
 }

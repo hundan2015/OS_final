@@ -7,17 +7,21 @@
 #include "Block.h"
 #include "array"
 #include "iostream"
+#include <cstring>
+#include <memory>
 namespace file_system {
     const int index_size = block_size / sizeof(short) - 1;
     enum FileType { NORMAL,
                     FOLDER,
                     SPECIAL };
     class FCB {
+    public:
         char name[14];
         short index_handle = -1;//-1~32767
-        int permission = -1;
+        int permission = 0;
         FileType file_type = NORMAL;
-        char pattern[8];
+        unsigned int opened_count = 0;
+        char pattern[4];
     };
     //TODO: Maybe need an active fcb.
 

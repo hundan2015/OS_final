@@ -12,6 +12,7 @@ namespace file_system {
         virtual unsigned int GetFileSize() = 0;
     };
     class File : public IFile {
+    public:
         std::unique_ptr<char[]> data;
         unsigned int data_size;
         std::unique_ptr<char[]> GetFileData() override {
