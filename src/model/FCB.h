@@ -16,7 +16,7 @@ namespace file_system {
                     SPECIAL };
     class FCB {
     public:
-        char name[14];
+        char name[14] = "no name";
         short index_handle = -1;//-1~32767
         int permission = 0;
         FileType file_type = NORMAL;

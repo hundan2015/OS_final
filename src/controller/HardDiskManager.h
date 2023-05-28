@@ -10,10 +10,12 @@
 #include "string"
 #include <memory>
 #include <stack>
+#include <vector>
 namespace file_system {
-    const int hard_disk_size = 512;
+    const int hard_disk_size = 1024;
     class HardDiskManager {
-        std::array<Block, hard_disk_size> hard_disk;
+        //std::array<Block, hard_disk_size> hard_disk;
+        std::vector<Block> hard_disk = std::vector<Block>(hard_disk_size);
         SuperBlock super_block;
         FCB *root_fcb;
         void InitSuperBlock() {
@@ -181,7 +183,7 @@ namespace file_system {
          * The basic format function.
          */
         void Format() {
-            hard_disk.fill(Block());
+            //hard_disk.fill(Block());
             /**
              * | super block | root_dir_index | root_dir_file_block0 | ....... |
              * |      0      |       1        |          2           | ....... |
